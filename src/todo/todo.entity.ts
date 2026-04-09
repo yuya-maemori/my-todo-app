@@ -7,8 +7,8 @@ type PrismaTodo = {
   id: number;
   title: string;
   completed: boolean;
-  created_at: Date;
-  updated_at: Date;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 /**
@@ -23,8 +23,8 @@ export function toPrismaToModel(prismaRecord: PrismaTodo): TodoModel {
     id: prismaRecord.id,
     title: prismaRecord.title,
     completed: prismaRecord.completed,
-    createdAt: prismaRecord.created_at,
-    updatedAt: prismaRecord.updated_at,
+    createdAt: prismaRecord.createdAt,
+    updatedAt: prismaRecord.updatedAt,
   });
 }
 
