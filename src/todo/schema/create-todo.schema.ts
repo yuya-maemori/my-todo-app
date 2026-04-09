@@ -14,15 +14,25 @@ import { z } from 'zod';
  *   → 指定しなければ未完了として作成される
  *
  * 【.optional().default(false) の意味】
- * - .optional() → リクエストに含まれなくても OK
- * - .default(false) → 含まれなかった場合は false を自動セット
- * → Usecase/Repository 側で undefined チェックが不要になる
+ * - .optional() → リクエストに含まれなくてもOK
+ * - .default(false) → 含まれなかった場合はfalseを自動セット
+ * → Usecase/Repository側でundefinedチェックが不要になる
  */
 export const createTodoSchema = z.object({
+  /** 
+   * TODO のタイトル。
+   * 1文字以上255文字以下。
+   * 空文字列やnull/undefinedは拒否される。
+   */
   title: z
     .string({ message: 'title は文字列である必要があります' })
     .min(1, 'title は空にできません')
     .max(255, 'title は255文字以下である必要があります'),
+  /** 
+   * 完了状態。
+   * true = 完了、false = 未完了。
+   * リクエストに含まれない場合はデフォルト false。
+   */
   completed: z.boolean().optional().default(false),
 });
 

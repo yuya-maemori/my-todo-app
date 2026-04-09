@@ -9,6 +9,7 @@
     "target": "ES2021",
     "sourceMap": true,
     "outDir": "./dist",
+    "types": ["node"],
     // TypeScript 7.0では、baseUrlは必須ではなったので、コメントアウトしています。
     // "baseUrl": "./",
     "incremental": true,
