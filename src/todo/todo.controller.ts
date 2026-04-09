@@ -1,10 +1,23 @@
-import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Body,
+  ParseIntPipe,
+  UsePipes,
+} from '@nestjs/common';
 import { TodoUsecase } from './todo.usecase';
 import {
   TodoResponseDto,
   toTodoResponseDto,
   toTodoResponseDtos,
 } from './dto/todo-response.dto';
+import {
+  createTodoSchema,
+  CreateTodoDto,
+} from './schema/create-todo.schema';
+import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 
 /**
  * Todo Controller
@@ -61,6 +74,34 @@ export class TodoController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<TodoResponseDto> {
     const model = await this.usecase.getTodoById(id);
+    return toTodoResponseDto(model);
+  }
+
+  /**
+   * POST /todos — 新規作成
+   *
+   * @Post() → POST /todos にマッチ
+   * @UsePipes(new ZodValidationPipe(createTodoSchema))
+   *   → Controller メソッド実行前に Zod でバリデーション
+   *   → 失敗時は自動的に 400 Bad Request が返る
+   * @Body() dto → バリデーション済みのリクエストボディ
+   *
+   * 【なぜ @UsePipes を使うのか】
+   * - バリデーション処理をメソッド本体から分離できる
+   * - メソッド本体は「ビジネスロジックの呼び出し」だけに集中
+   * - スキーマを差し替えるだけで、別のバリデーションルールに変更可能
+   *
+   * 【データの流れ】
+   * 1. クライアント: POST /todos + { title: "..." }
+   * 2. ZodValidationPipe: createTodoSchema.parse(body) でバリデーション
+   * 3. バリデーション済み dto を受け取る
+   * 4. Usecase.createTodo(dto): Repository 経由で DB に保存
+   * 5. toTodoResponseDto(model): Model → DTO に変換して返却
+   */
+  @Post()
+  @UsePipes(new ZodValidationPipe(createTodoSchema))
+  async createTodo(@Body() dto: CreateTodoDto): Promise<TodoResponseDto> {
+    const model = await this.usecase.createTodo(dto);
     return toTodoResponseDto(model);
   }
 }

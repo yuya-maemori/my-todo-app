@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { TodoRepository } from './todo.repository';
 import { TodoModel } from './todo.model';
+import { CreateTodoDto } from './schema/create-todo.schema';
 
 /**
  * Todo Usecase
@@ -46,5 +47,30 @@ export class TodoUsecase {
     }
 
     return todo;
+  }
+
+  /**
+   * Todo 作成
+   *
+   * バリデーション済みの DTO を受け取り、Repository に委譲して DB に保存する。
+   *
+   * 【なぜ Usecase を経由するのか】
+   * - 現段階では Repository.create() を呼ぶだけ
+   * - しかし将来的には以下のようなビジネスロジックが追加される：
+   *   → 「同じタイトルの Todo が既に存在しないか」チェック
+   *   → 「このユーザーは作成権限を持っているか」チェック
+   *   → 「作成後に通知を送る」などの副作用
+   * - Controller に直接書くと、これらのロジックが HTTP 層に漏れる
+   *
+   * 【引数の型が CreateTodoDto な理由】
+   * - Zod スキーマから自動生成された型
+   * - Controller の ZodValidationPipe で検証済み
+   * - Usecase は「既に安全なデータ」を前提にできる
+   */
+  async createTodo(data: CreateTodoDto): Promise<TodoModel> {
+    return this.repository.create({
+      title: data.title,
+      completed: data.completed,
+    });
   }
 }
