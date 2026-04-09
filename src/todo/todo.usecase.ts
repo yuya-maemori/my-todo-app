@@ -1,7 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { TodoRepository } from './todo.repository';
 import { TodoModel } from './todo.model';
 import { CreateTodoDto } from './schema/create-todo.schema';
+import { UpdateTodoDto } from './schema/update-todo.schema';
+import { TodoValidator } from './todo.validator';
 
 /**
  * Todo Usecase
@@ -15,7 +17,10 @@ import { CreateTodoDto } from './schema/create-todo.schema';
  */
 @Injectable()
 export class TodoUsecase {
-  constructor(private repository: TodoRepository) {}
+  constructor(
+    private repository: TodoRepository,
+    private validator: TodoValidator,
+  ) {}
 
   /**
    * Todo 一覧取得
@@ -40,13 +45,7 @@ export class TodoUsecase {
    * - この判定はこの Usecase の責務
    */
   async getTodoById(id: number): Promise<TodoModel> {
-    const todo = await this.repository.findById(id);
-
-    if (!todo) {
-      throw new NotFoundException(`Todo with id ${id} not found`);
-    }
-
-    return todo;
+    return this.validator.validateTodoExists(id);
   }
 
   /**
@@ -72,5 +71,31 @@ export class TodoUsecase {
       title: data.title,
       completed: data.completed,
     });
+  }
+
+  /**
+   * Todo 更新
+   *
+   * 先に存在確認を行うことで、「存在しない ID を更新した」というケースを
+   * 明確に 404 として扱える。
+   */
+  async updateTodo(id: number, data: UpdateTodoDto): Promise<TodoModel> {
+    await this.validator.validateTodoExists(id);
+
+    return this.repository.update(id, {
+      ...(data.title !== undefined && { title: data.title }),
+      ...(data.completed !== undefined && { completed: data.completed }),
+    });
+  }
+
+  /**
+   * Todo 削除
+   *
+   * 削除前に存在確認を行い、存在しない場合は 404 を返す。
+   * 正常系は Controller 側で 204 No Content を返す。
+   */
+  async deleteTodo(id: number): Promise<void> {
+    await this.validator.validateTodoExists(id);
+    await this.repository.delete(id);
   }
 }

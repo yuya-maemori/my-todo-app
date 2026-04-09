@@ -3,6 +3,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { TodoController } from './todo.controller';
 import { TodoUsecase } from './todo.usecase';
 import { TodoRepository } from './todo.repository';
+import { TodoValidator } from './todo.validator';
 
 /**
  * Todo Module
@@ -31,6 +32,6 @@ import { TodoRepository } from './todo.repository';
 @Module({
   imports: [PrismaModule],
   controllers: [TodoController],
-  providers: [TodoUsecase, TodoRepository],
+  providers: [TodoUsecase, TodoRepository, TodoValidator],
 })
 export class TodoModule {}

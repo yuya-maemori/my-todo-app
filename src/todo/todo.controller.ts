@@ -2,6 +2,9 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Delete,
+  HttpCode,
   Param,
   Body,
   ParseIntPipe,
@@ -17,6 +20,10 @@ import {
   createTodoSchema,
   CreateTodoDto,
 } from './schema/create-todo.schema';
+import {
+  updateTodoSchema,
+  UpdateTodoDto,
+} from './schema/update-todo.schema';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 
 /**
@@ -103,5 +110,31 @@ export class TodoController {
   async createTodo(@Body() dto: CreateTodoDto): Promise<TodoResponseDto> {
     const model = await this.usecase.createTodo(dto);
     return toTodoResponseDto(model);
+  }
+
+  /**
+   * PATCH /todos/:id — 更新
+   *
+   * PATCH は部分更新のため、送られた項目だけを更新する。
+   * バリデーションは ZodValidationPipe で先に行い、Usecase には安全な DTO だけを渡す。
+   */
+  @Patch(':id')
+  async updateTodo(
+    @Param('id', ParseIntPipe) id: number,
+    @Body(new ZodValidationPipe(updateTodoSchema)) dto: UpdateTodoDto,
+  ): Promise<TodoResponseDto> {
+    const model = await this.usecase.updateTodo(id, dto);
+    return toTodoResponseDto(model);
+  }
+
+  /**
+   * DELETE /todos/:id — 削除
+   *
+   * 削除成功時はレスポンスボディを返さず、204 No Content を返す。
+   */
+  @Delete(':id')
+  @HttpCode(204)
+  async deleteTodo(@Param('id', ParseIntPipe) id: number): Promise<void> {
+    await this.usecase.deleteTodo(id);
   }
 }
