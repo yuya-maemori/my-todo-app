@@ -1,17 +1,29 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TodoModel } from './todo.model';
 import { toPrismaToModel, toPrismaToModels } from './todo.entity';
 
 /**
- * ページネーション用のオプション
+ * Todo 一覧取得のオプション
  *
- * skip: スキップ件数
- * take: 取得件数
+ * 【パラメータ説明】
+ * - skip: スキップ件数（ページ計算済み）
+ * - take: 取得件数（limit と同じ）
+ * - where: 検索条件（Prisma.TodoWhereInput）
+ *   - title: { contains: "キーワード" } など
+ * - orderBy: ソート条件（Prisma.TodoOrderByWithRelationInput）
+ *   - createdAt: "desc" など
+ *
+ * 【なぜこの設計か】
+ * Repository は「条件をそのまま Prisma に渡すだけ」
+ * → 複雑な条件組み立ては Controller/Usecase がやる（責務分離）
  */
 export interface FindAllOptions {
   skip?: number;
   take?: number;
+  where?: Prisma.TodoWhereInput;
+  orderBy?: Prisma.TodoOrderByWithRelationInput;
 }
 
 /**
@@ -31,32 +43,54 @@ export class TodoRepository {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * 全件取得（ページネーション対応）
+   * 全件取得（ページネーション + 検索・ソート対応）
    *
    * @param options.skip スキップ件数（ページ計算済み）
    * @param options.take 取得件数（limit と同じ）
-   * @returns ページング済みの TodoModel[]
+   * @param options.where 検索条件（title に keyword を含むなど）
+   * @param options.orderBy ソート条件（createdAt asc/desc など）
+   * @returns 条件に合った TodoModel[]
+   *
+   * 【実装ポイント】
+   * - where / orderBy は「与えられなければ undefined」で OK
+   * - Prisma がそれらの値を無視してくれる
+   * - 複雑な条件組み立ては Controller/Usecase が担当
    *
    * 【使用例】
-   * findAll({ skip: 10, take: 10 })
-   * → ID 11～20 を返す（2ページ目、1ページ 10 件時）
+   * findAll({
+   *   skip: 0,
+   *   take: 10,
+   *   where: { title: { contains: "買い物" }, completed: false },
+   *   orderBy: { createdAt: "desc" }
+   * })
+   * → 「買い物」を含む未完了 TODO を、新しい順に、最初の 10 件取得
    */
   async findAll(options?: FindAllOptions): Promise<TodoModel[]> {
     const records = await this.prisma.todo.findMany({
       skip: options?.skip,
       take: options?.take,
-      orderBy: { createdAt: 'desc' }, // 新しい順でソート
+      where: options?.where,     // ← 検索条件（与えられなければ undefined）
+      orderBy: options?.orderBy, // ← ソート条件（与えられなければ undefined）
     });
     return toPrismaToModels(records);
   }
 
   /**
-   * TODO の全件数をカウント
+   * TODO の件数をカウント
    *
-   * ページ計算（totalPages = Math.ceil(totalItems / limit)）に必要
+   * @param where 検索条件（指定なければ全件カウント）
+   * @returns マッチした TODO の総件数
+   *
+   * 【重要】
+   * ページネーション時の totalPages 計算に使う。
+   * 検索時は where を渡して「検索にマッチした件数」を取得。
+   *
+   * 【例】
+   * - count() → 全 TODO 件数（例：100 件）
+   * - count({ where: { title: { contains: "買い物" } } }) → 検索結果の件数（例：15 件）
    */
-  async count(): Promise<number> {
-    return this.prisma.todo.count();
+  async count(where?: Prisma.TodoWhereInput): Promise<number> {
+    return this.prisma.todo.count({ where });
   }
 
   /**

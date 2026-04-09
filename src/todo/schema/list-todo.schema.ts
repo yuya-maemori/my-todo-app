@@ -3,14 +3,20 @@ import { z } from 'zod';
 /**
  * TODO 一覧取得のクエリパラメータ Zod スキーマ
  *
- * 【クエリパラメータ（URL の ?page=1&limit=10）をバリデーション】
+ * 【クエリパラメータをバリデーション】
  * - page: ページ番号。1 以上。指定なければ 1
  * - limit: 1ページあたりの件数。1～100。指定なければ 10
+ * - sortBy: ソート対象カラム。createdAt か title。指定なければ createdAt
+ * - sortOrder: ソート順序。asc か desc。指定なければ desc
+ * - keyword: タイトル検索キーワード。オプション（指定なければ undefined）
+ *
+ * 【URL 例】
+ * GET /todos?page=1&limit=10&sortBy=createdAt&sortOrder=desc&keyword=買い物
  *
  * 【なぜこのバリデーションか】
- * - page=0 や limit=0 は意味がない
- * - limit=10000 だとサーバー負荷が高い → 最大 100 に制限
- * - limit=-5 のような数値は弾く
+ * - sortBy / sortOrder を enum で制限 → 不正な値を弾く
+ * - keyword は文字列のため、特に制限なし
+ * - .optional() / .default() で「あってもなくても大丈夫」な構造に
  */
 export const listTodoSchema = z.object({
   /**
@@ -38,6 +44,45 @@ export const listTodoSchema = z.object({
     .positive('件数は 1 以上である必要があります')
     .max(100, '件数は最大 100 です')
     .default(10),
+
+  /**
+   * ソート対象のカラム。
+   * - .enum(['createdAt', 'title']) → これ以外は拒否
+   * - .default('createdAt') → 指定なければ作成日でソート
+   *
+   * 【なぜ enum で制限するのか】
+   * ユーザーが任意のカラム名を指定できると、DB スキーマを推測されるセキュリティリスク
+   * → 事前に許可するカラムだけを enum で列挙
+   */
+  sortBy: z
+    .enum(['createdAt', 'title'])
+    .default('createdAt'),
+
+  /**
+   * ソート順序（昇順 / 降順）。
+   * - .enum(['asc', 'desc']) → これ以外は拒否
+   * - .default('desc') → 指定なければ新しい順（降順）
+   *
+   * 【asc vs desc の例】
+   * - asc（昇順）：古い → 新しい、A → Z
+   * - desc（降順）：新しい → 古い、Z → A
+   */
+  sortOrder: z
+    .enum(['asc', 'desc'])
+    .default('desc'),
+
+  /**
+   * タイトル検索キーワード。
+   * - .string() → 文字列のみ
+   * - .optional() → 指定なければ undefined
+   *
+   * 【なぜ optional か】
+   * ユーザーが検索キーワードを指定しないことはよくある
+   * → 指定なければ「検索条件なし」という意味
+   */
+  keyword: z
+    .string('キーワードは文字列である必要があります')
+    .optional(),
 });
 
 /**

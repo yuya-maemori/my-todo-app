@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { TodoRepository } from './todo.repository';
 import { TodoModel } from './todo.model';
 import { CreateTodoDto } from './schema/create-todo.schema';
@@ -23,6 +24,73 @@ export class TodoUsecase {
   ) {}
 
   /**
+   * Todo 一覧取得（ページング + 検索・ソート対応）
+   *
+   * ページネーション、キーワード検索、ソートに対応した一覧取得メソッド。
+   * Controller から複雑な条件を受け取り、Repository に渡します。
+   *
+   * @param page ページ番号（1 以上）
+   * @param limit 1ページあたり件数
+   * @param sortBy ソート対象カラム（'createdAt' | 'title'）
+   * @param sortOrder ソート順序（'asc' | 'desc'）
+   * @param keyword タイトルに含むキーワード（オプション）
+   * @returns { todos, totalItems } 検索結果 + 総件数
+   *
+   * 【責務分離の考え方】
+   * - Controller: URL パラメータを Zod で バリデーション
+   * - Usecase: パラメータから where / orderBy を組み立てる ← ここ
+   * - Repository: 条件をそのまま Prisma に渡す
+   *
+   * 【何をしているのか】
+   * 1. skip を計算（ページネーション）
+   * 2. where 条件を組み立て（keyword があれば検索条件を追加）
+   * 3. orderBy 条件を組み立て（sortBy / sortOrder に応じて）
+   * 4. Repository に条件を渡す（findAll + count を並列実行）
+   */
+  async getTodosWithSearch(params: {
+    page: number;
+    limit: number;
+    sortBy: 'createdAt' | 'title';
+    sortOrder: 'asc' | 'desc';
+    keyword?: string;
+  }): Promise<{ todos: TodoModel[]; totalItems: number }> {
+    const { page, limit, sortBy, sortOrder, keyword } = params;
+    const skip = (page - 1) * limit;
+
+    // 【Step 1】where 条件を組み立てる
+    // keyword があれば、タイトルに含むという条件を追加
+    const where: Prisma.TodoWhereInput = {};
+    if (keyword) {
+      where.title = {
+        contains: keyword,  // ← Prisma where contains
+      };
+    }
+
+    // 【Step 2】orderBy 条件を組み立てる
+    // sortBy と sortOrder に応じて、どのカラムをどの順序でソートするか決定
+    let orderBy: Prisma.TodoOrderByWithRelationInput;
+    if (sortBy === 'createdAt') {
+      orderBy = { createdAt: sortOrder as 'asc' | 'desc' };
+    } else {
+      // sortBy === 'title'
+      orderBy = { title: sortOrder as 'asc' | 'desc' };
+    }
+
+    // 【Step 3】Repository に条件を渡す（並列実行）
+    const [todos, totalItems] = await Promise.all([
+      this.repository.findAll({
+        skip,
+        take: limit,
+        where,
+        orderBy,
+      }),
+      this.repository.count(where),  // where 条件を渡して、検索結果の総件数を取得
+    ]);
+
+    return { todos, totalItems };
+  }
+
+  /**
    * Todo 一覧取得（ページング版）
    *
    * ページ番号と 1 ページあたりの件数を受け取り、
@@ -36,6 +104,10 @@ export class TodoUsecase {
    * page=2, limit=10 → skip=10
    * skip = (page - 1) * limit
    * → 最初の 10 件をスキップして、次の 10 件を取得
+   *
+   * 【備考】
+   * このメソッドは Task 16 で実装した基本的なページネーション。
+   * Task 17 では getTodosWithSearch() を使うため、このメソッドは互換性維持のために残してあります。
    */
   async getTodosWithPagination(
     page: number,

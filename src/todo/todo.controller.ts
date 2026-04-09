@@ -59,28 +59,36 @@ export class TodoController {
   constructor(private usecase: TodoUsecase) {}
 
   /**
-   * GET /todos — 一覧取得（ページング対応）
+   * GET /todos — 一覧取得（ページング + 検索・ソート対応）
    *
    * @Query('page') page — ページ番号（デフォルト: 1）
    * @Query('limit') limit — 1ページあたりの件数（デフォルト: 10）
+   * @Query('sortBy') sortBy — ソート対象（デフォルト: createdAt）
+   * @Query('sortOrder') sortOrder — ソート順序（デフォルト: desc）
+   * @Query('keyword') keyword — タイトル検索キーワード（オプション）
    *
    * 流れ：
-   * 1. クエリパラメータから page/limit を取得
-   * 2. Usecase で getTodosWithPagination(page, limit) を実行
-   * 3. 結果から PaginatedResponseDto を組み立てる
-   * 4. { items, totalItems, totalPages, currentPage } を返す
+   * 1. クエリパラメータをすべて取得
+   * 2. listTodoSchema で Zod バリデーション + デフォルト値適用
+   * 3. Usecase に条件を渡して getTodosWithSearch() を実行
+   * 4. where / orderBy は Usecase が組み立てる
+   * 5. PaginatedResponseDto を返す
    *
-   * 【使用例】
-   * GET /todos?page=2&limit=10
-   * → 2ページ目、1ページ 10 件を返す
+   * 【URL 例】
+   * GET /todos?page=1&limit=10&sortBy=createdAt&sortOrder=desc&keyword=買い物
+   * → 「買い物」を含む TODO を、新しい順に、1ページ目を取得
+   *
+   * GET /todos?sortBy=title&sortOrder=asc
+   * → タイトルのアレ順に並べたデータを、デフォルトページサイズで取得
    *
    * GET /todos
-   * → デフォルト: 1ページ目、1ページ 10 件
+   * → デフォルト: 最新順、1ページ目、10 件
    */
   @Get()
   @ApiOperation({
-    summary: 'TODO 一覧を取得（ページング対応）',
-    description: 'ページ番号とページサイズを指定して TODO 一覧を取得します。',
+    summary: 'TODO 一覧を取得（ページング + ソート・検索対応）',
+    description:
+      'ページネーション、キーワード検索、ソート機能に対応した TODO 一覧取得',
   })
   @ApiQuery({
     name: 'page',
@@ -96,31 +104,69 @@ export class TodoController {
     description: '1ページあたりの件数（1～100、デフォルト: 10）',
     example: 10,
   })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    type: String,
+    description: 'ソート対象カラム（createdAt | title、デフォルト: createdAt）',
+    example: 'createdAt',
+  })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    type: String,
+    description: 'ソート順序（asc | desc、デフォルト: desc）',
+    example: 'desc',
+  })
+  @ApiQuery({
+    name: 'keyword',
+    required: false,
+    type: String,
+    description: 'タイトル検索キーワード（オプション）',
+    example: '買い物',
+  })
   @ApiResponse({
     status: 200,
     description: 'TODO 一覧取得成功',
     type: PaginatedResponseDto<TodoResponseDto>,
   })
   @ApiBadRequestResponse({
-    description: 'バリデーションエラー（page/limit が不正）',
+    description: 'バリデーションエラー（パラメータが不正）',
   })
   async getTodos(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('sortBy', new DefaultValuePipe('createdAt')) sortBy: string,
+    @Query('sortOrder', new DefaultValuePipe('desc')) sortOrder: string,
+    @Query('keyword') keyword?: string,
   ): Promise<PaginatedResponseDto<TodoResponseDto>> {
-    // バリデーション（Zod スキーマで検証）
-    const query = listTodoSchema.parse({ page, limit });
+    // 【Step 1】Zod バリデーション + デフォルト値適用
+    // - page/limit/sortBy/sortOrder/keyword をバリデーション
+    // - invalid 値は拒否（enum チェックなど）
+    // - デフォルト値を自動適用
+    const query = listTodoSchema.parse({
+      page,
+      limit,
+      sortBy,
+      sortOrder,
+      keyword,
+    });
 
-    // ページング付きで取得
-    const { todos, totalItems } = await this.usecase.getTodosWithPagination(
-      query.page,
-      query.limit,
-    );
+    // 【Step 2】Usecase に検索条件を渡す
+    // - where / orderBy は Usecase が組み立てる
+    // - Repository が条件を Prisma に渡す
+    const { todos, totalItems } = await this.usecase.getTodosWithSearch({
+      page: query.page,
+      limit: query.limit,
+      sortBy: query.sortBy as 'createdAt' | 'title',
+      sortOrder: query.sortOrder as 'asc' | 'desc',
+      keyword: query.keyword,
+    });
 
-    // 全ページ数を計算
+    // 【Step 3】全ページ数を計算
     const totalPages = Math.ceil(totalItems / query.limit);
 
-    // レスポンス DTO に変換して返す
+    // 【Step 4】レスポンス DTO に変換して返す
     return new PaginatedResponseDto(
       toTodoResponseDtos(todos),
       totalItems,
