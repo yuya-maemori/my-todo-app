@@ -4,6 +4,17 @@ import { TodoModel } from './todo.model';
 import { toPrismaToModel, toPrismaToModels } from './todo.entity';
 
 /**
+ * ページネーション用のオプション
+ *
+ * skip: スキップ件数
+ * take: 取得件数
+ */
+export interface FindAllOptions {
+  skip?: number;
+  take?: number;
+}
+
+/**
  * Todo Repository
  *
  * 責務：データベースとのやり取り
@@ -20,16 +31,32 @@ export class TodoRepository {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * 全件取得
+   * 全件取得（ページネーション対応）
    *
-   * DB から全ての Todo レコードを取得します。
-   * Prisma のレコードを toPrismaToModel で Model に変換。
+   * @param options.skip スキップ件数（ページ計算済み）
+   * @param options.take 取得件数（limit と同じ）
+   * @returns ページング済みの TodoModel[]
    *
-   * 戻り値：TodoModel の配列
+   * 【使用例】
+   * findAll({ skip: 10, take: 10 })
+   * → ID 11～20 を返す（2ページ目、1ページ 10 件時）
    */
-  async findAll(): Promise<TodoModel[]> {
-    const records = await this.prisma.todo.findMany();
+  async findAll(options?: FindAllOptions): Promise<TodoModel[]> {
+    const records = await this.prisma.todo.findMany({
+      skip: options?.skip,
+      take: options?.take,
+      orderBy: { createdAt: 'desc' }, // 新しい順でソート
+    });
     return toPrismaToModels(records);
+  }
+
+  /**
+   * TODO の全件数をカウント
+   *
+   * ページ計算（totalPages = Math.ceil(totalItems / limit)）に必要
+   */
+  async count(): Promise<number> {
+    return this.prisma.todo.count();
   }
 
   /**

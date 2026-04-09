@@ -7,13 +7,16 @@ import {
   HttpCode,
   Param,
   Body,
+  Query,
   ParseIntPipe,
+  DefaultValuePipe,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiParam,
+  ApiQuery,
   ApiBadRequestResponse,
   ApiNotFoundResponse,
 } from '@nestjs/swagger';
@@ -31,6 +34,8 @@ import {
   updateTodoSchema,
   UpdateTodoDto,
 } from './schema/update-todo.schema';
+import { listTodoSchema } from './schema/list-todo.schema';
+import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 
 /**
@@ -54,28 +59,74 @@ export class TodoController {
   constructor(private usecase: TodoUsecase) {}
 
   /**
-   * GET /todos — 一覧取得
+   * GET /todos — 一覧取得（ページング対応）
    *
-   * @Get() → パスなし＝ /todos にマッチ
+   * @Query('page') page — ページ番号（デフォルト: 1）
+   * @Query('limit') limit — 1ページあたりの件数（デフォルト: 10）
    *
    * 流れ：
-   * 1. Usecase から TodoModel[] を取得
-   * 2. toTodoResponseDtos() で DTO に変換
-   * 3. NestJS が自動的に JSON にシリアライズして返す
+   * 1. クエリパラメータから page/limit を取得
+   * 2. Usecase で getTodosWithPagination(page, limit) を実行
+   * 3. 結果から PaginatedResponseDto を組み立てる
+   * 4. { items, totalItems, totalPages, currentPage } を返す
+   *
+   * 【使用例】
+   * GET /todos?page=2&limit=10
+   * → 2ページ目、1ページ 10 件を返す
+   *
+   * GET /todos
+   * → デフォルト: 1ページ目、1ページ 10 件
    */
   @Get()
   @ApiOperation({
-    summary: 'TODO 一覧を取得',
-    description: 'すべての TODO データを返します。',
+    summary: 'TODO 一覧を取得（ページング対応）',
+    description: 'ページ番号とページサイズを指定して TODO 一覧を取得します。',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'ページ番号（1 以上、デフォルト: 1）',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: '1ページあたりの件数（1～100、デフォルト: 10）',
+    example: 10,
   })
   @ApiResponse({
     status: 200,
     description: 'TODO 一覧取得成功',
-    type: [TodoResponseDto],
+    type: PaginatedResponseDto<TodoResponseDto>,
   })
-  async getTodos(): Promise<TodoResponseDto[]> {
-    const models = await this.usecase.getTodos();
-    return toTodoResponseDtos(models);
+  @ApiBadRequestResponse({
+    description: 'バリデーションエラー（page/limit が不正）',
+  })
+  async getTodos(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+  ): Promise<PaginatedResponseDto<TodoResponseDto>> {
+    // バリデーション（Zod スキーマで検証）
+    const query = listTodoSchema.parse({ page, limit });
+
+    // ページング付きで取得
+    const { todos, totalItems } = await this.usecase.getTodosWithPagination(
+      query.page,
+      query.limit,
+    );
+
+    // 全ページ数を計算
+    const totalPages = Math.ceil(totalItems / query.limit);
+
+    // レスポンス DTO に変換して返す
+    return new PaginatedResponseDto(
+      toTodoResponseDtos(todos),
+      totalItems,
+      totalPages,
+      query.page,
+    );
   }
 
   /**

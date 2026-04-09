@@ -23,14 +23,33 @@ export class TodoUsecase {
   ) {}
 
   /**
-   * Todo 一覧取得
+   * Todo 一覧取得（ページング版）
    *
-   * Repository の findAll() を呼んで全件取得する。
-   * 現時点ではシンプルだが、将来的にはフィルタリングやソートなどの
-   * ビジネスロジックがここに追加される。
+   * ページ番号と 1 ページあたりの件数を受け取り、
+   *該当ページの Todo を取得します。
+   *
+   * @param page ページ番号（1 以上）
+   * @param limit 1ページあたり件数
+   * @returns { todos, totalItems } ページ済みデータ + 全件数
+   *
+   * 【計算ロジック】
+   * page=2, limit=10 → skip=10
+   * skip = (page - 1) * limit
+   * → 最初の 10 件をスキップして、次の 10 件を取得
    */
-  async getTodos(): Promise<TodoModel[]> {
-    return this.repository.findAll();
+  async getTodosWithPagination(
+    page: number,
+    limit: number,
+  ): Promise<{ todos: TodoModel[]; totalItems: number }> {
+    const skip = (page - 1) * limit;
+
+    // 並列実行で効率化（2つの DB クエリを同時に実行）
+    const [todos, totalItems] = await Promise.all([
+      this.repository.findAll({ skip, take: limit }),
+      this.repository.count(),
+    ]);
+
+    return { todos, totalItems };
   }
 
   /**
