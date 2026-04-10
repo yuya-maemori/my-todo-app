@@ -9,14 +9,11 @@ type PrismaTodo = {
   completed: boolean;
   createdAt: Date;
   updatedAt: Date;
+  tags?: { tag: { id: number; name: string } }[];
 };
 
 /**
  * Prisma記録をドメインモデルに変換する
- *
- * 目的：DB層とアプリケーション層の独立性を保つ
- * 例えば、Prismaのレコードに新しいフィールドが追加されても、
- * このEntity関数だけを修正すれば、その他の層には影響しません。
  */
 export function toPrismaToModel(prismaRecord: PrismaTodo): TodoModel {
   return new TodoModel({
@@ -25,6 +22,7 @@ export function toPrismaToModel(prismaRecord: PrismaTodo): TodoModel {
     completed: prismaRecord.completed,
     createdAt: prismaRecord.createdAt,
     updatedAt: prismaRecord.updatedAt,
+    tags: prismaRecord.tags?.map((t) => ({ id: t.tag.id, name: t.tag.name })),
   });
 }
 

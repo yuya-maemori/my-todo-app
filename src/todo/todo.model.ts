@@ -11,6 +11,7 @@ export class TodoModel {
   completed: boolean;
   createdAt: Date;
   updatedAt: Date;
+  tags: { id: number; name: string }[];
 
   constructor(data: {
     id: number;
@@ -18,11 +19,13 @@ export class TodoModel {
     completed: boolean;
     createdAt: Date;
     updatedAt: Date;
+    tags?: { id: number; name: string }[];
   }) {
     this.id = data.id;
     this.title = data.title;
     this.completed = data.completed;
     this.createdAt = data.createdAt;
     this.updatedAt = data.updatedAt;
+    this.tags = data.tags ?? [];
   }
 }

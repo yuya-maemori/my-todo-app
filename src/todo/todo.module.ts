@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
+import { TagModule } from '../tag/tag.module';
 import { TodoController } from './todo.controller';
 import { TodoUsecase } from './todo.usecase';
 import { TodoRepository } from './todo.repository';
@@ -30,7 +31,7 @@ import { TodoValidator } from './todo.validator';
  * 6. NestJS が PrismaModule の exports から PrismaService を見つけて注入
  */
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, TagModule],
   controllers: [TodoController],
   providers: [TodoUsecase, TodoRepository, TodoValidator],
 })

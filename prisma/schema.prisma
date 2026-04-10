@@ -20,6 +20,31 @@ model Todo {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  tags TodoTag[]
+
   @@map("todos")
+}
+
+model Tag {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  todos TodoTag[]
+
+  @@map("tags")
+}
+
+model TodoTag {
+  todoId Int @map("todo_id")
+  tagId  Int @map("tag_id")
+
+  todo Todo @relation(fields: [todoId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([todoId, tagId])
+  @@index([tagId])
+  @@map("todo_tags")
 }
 

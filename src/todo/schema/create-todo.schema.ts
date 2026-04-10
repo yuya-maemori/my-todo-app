@@ -34,6 +34,12 @@ export const createTodoSchema = z.object({
    * リクエストに含まれない場合はデフォルト false。
    */
   completed: z.boolean().optional().default(false),
+  tagNames: z
+    .array(
+      z.string().min(1, 'タグ名は空にできません').max(100, 'タグ名は100文字以下'),
+    )
+    .optional()
+    .default([]),
 });
 
 /**

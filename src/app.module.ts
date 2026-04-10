@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { HelloModule } from './hello/hello.module';
 import { TodoModule } from './todo/todo.module';
+import { TagModule } from './tag/tag.module';
 import { HealthModule } from './health/health.module';
 import { ConfigSchema } from './config/config.schema';
 
@@ -24,6 +25,7 @@ import { ConfigSchema } from './config/config.schema';
     PrismaModule,
     HelloModule,
     TodoModule,
+    TagModule,
     HealthModule,
   ],
   controllers: [AppController],

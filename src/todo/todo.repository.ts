@@ -69,8 +69,9 @@ export class TodoRepository {
     const records = await this.prisma.todo.findMany({
       skip: options?.skip,
       take: options?.take,
-      where: options?.where,     // ← 検索条件（与えられなければ undefined）
-      orderBy: options?.orderBy, // ← ソート条件（与えられなければ undefined）
+      where: options?.where,
+      orderBy: options?.orderBy,
+      include: { tags: { include: { tag: true } } },
     });
     return toPrismaToModels(records);
   }
@@ -105,9 +106,9 @@ export class TodoRepository {
   async findById(id: number): Promise<TodoModel | null> {
     const record = await this.prisma.todo.findUnique({
       where: { id },
+      include: { tags: { include: { tag: true } } },
     });
 
-    // 見つからなければ null を返す
     if (!record) {
       return null;
     }
@@ -129,13 +130,21 @@ export class TodoRepository {
   async create(data: {
     title: string;
     completed: boolean;
+    tagIds?: number[];
   }): Promise<TodoModel> {
     const record = await this.prisma.todo.create({
       data: {
         title: data.title,
         completed: data.completed,
-        // created_at, updated_at は @default(now()), @updatedAt で自動設定
+        ...(data.tagIds && data.tagIds.length > 0 && {
+          tags: {
+            createMany: {
+              data: data.tagIds.map((tagId) => ({ tagId })),
+            },
+          },
+        }),
       },
+      include: { tags: { include: { tag: true } } },
     });
 
     return toPrismaToModel(record);
@@ -164,11 +173,10 @@ export class TodoRepository {
     const record = await this.prisma.todo.update({
       where: { id },
       data: {
-        // 指定されたフィールドだけを更新
         ...(data.title !== undefined && { title: data.title }),
         ...(data.completed !== undefined && { completed: data.completed }),
-        // updated_at は Prisma が自動で現在時刻に更新
       },
+      include: { tags: { include: { tag: true } } },
     });
 
     return toPrismaToModel(record);
@@ -186,6 +194,7 @@ export class TodoRepository {
   async delete(id: number): Promise<TodoModel> {
     const record = await this.prisma.todo.delete({
       where: { id },
+      include: { tags: { include: { tag: true } } },
     });
 
     return toPrismaToModel(record);

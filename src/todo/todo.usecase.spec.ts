@@ -4,6 +4,7 @@ import { TodoModel } from './todo.model';
 import { TodoRepository } from './todo.repository';
 import { TodoUsecase } from './todo.usecase';
 import { TodoValidator } from './todo.validator';
+import { TagService } from '../tag/external/tag.service';
 
 const mockTodo = new TodoModel({
   id: 1,
@@ -25,6 +26,10 @@ const mockRepository: Pick<
   delete: jest.fn(),
 };
 
+const mockTagService: Pick<TagService, 'findOrCreateByName'> = {
+  findOrCreateByName: jest.fn(),
+};
+
 describe('TodoUsecase', () => {
   let usecase: TodoUsecase;
 
@@ -34,6 +39,7 @@ describe('TodoUsecase', () => {
         TodoUsecase,
         TodoValidator,
         { provide: TodoRepository, useValue: mockRepository },
+        { provide: TagService, useValue: mockTagService },
       ],
     }).compile();
 
@@ -188,12 +194,14 @@ describe('TodoUsecase', () => {
       const result = await usecase.createTodo({
         title: 'テスト Todo',
         completed: false,
+        tagNames: [],
       });
 
       expect(result).toEqual(mockTodo);
       expect(mockRepository.create).toHaveBeenCalledWith({
         title: 'テスト Todo',
         completed: false,
+        tagIds: [],
       });
     });
   });

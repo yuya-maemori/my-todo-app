@@ -5,6 +5,7 @@ import { TodoModel } from './todo.model';
 import { CreateTodoDto } from './schema/create-todo.schema';
 import { UpdateTodoDto } from './schema/update-todo.schema';
 import { TodoValidator } from './todo.validator';
+import { TagService } from '../tag/external/tag.service';
 
 /**
  * Todo Usecase
@@ -21,6 +22,7 @@ export class TodoUsecase {
   constructor(
     private repository: TodoRepository,
     private validator: TodoValidator,
+    private tagService: TagService,
   ) {}
 
   /**
@@ -158,9 +160,19 @@ export class TodoUsecase {
    * - Usecase は「既に安全なデータ」を前提にできる
    */
   async createTodo(data: CreateTodoDto): Promise<TodoModel> {
+    // タグ名の配列が渡された場合、各タグを findOrCreate して ID を集める
+    const tagIds: number[] = [];
+    if (data.tagNames && data.tagNames.length > 0) {
+      for (const tagName of data.tagNames) {
+        const tag = await this.tagService.findOrCreateByName(tagName);
+        tagIds.push(tag.id);
+      }
+    }
+
     return this.repository.create({
       title: data.title,
       completed: data.completed,
+      tagIds,
     });
   }
 

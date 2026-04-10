@@ -61,18 +61,26 @@ export class TodoResponseDto {
   })
   updatedAt: Date;
 
+  @ApiProperty({
+    description: '紐づいているタグ一覧',
+    example: [{ id: 1, name: '緊急' }],
+  })
+  tags: { id: number; name: string }[];
+
   constructor(data: {
     id: number;
     title: string;
     completed: boolean;
     createdAt: Date;
     updatedAt: Date;
+    tags: { id: number; name: string }[];
   }) {
     this.id = data.id;
     this.title = data.title;
     this.completed = data.completed;
     this.createdAt = data.createdAt;
     this.updatedAt = data.updatedAt;
+    this.tags = data.tags;
   }
 }
 
@@ -88,6 +96,7 @@ export function toTodoResponseDto(model: TodoModel): TodoResponseDto {
     completed: model.completed,
     createdAt: model.createdAt,
     updatedAt: model.updatedAt,
+    tags: model.tags,
   });
 }
 
