@@ -10,7 +10,9 @@ import {
   Query,
   ParseIntPipe,
   DefaultValuePipe,
+  Header,
 } from '@nestjs/common';
+import { StreamableFile } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -21,6 +23,7 @@ import {
   ApiNotFoundResponse,
 } from '@nestjs/swagger';
 import { TodoUsecase } from './todo.usecase';
+import { TodoCsvExportService } from './external/todo-csv-export.service';
 import {
   TodoResponseDto,
   toTodoResponseDto,
@@ -50,13 +53,10 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 @Controller('todos')
 @ApiTags('todos')
 export class TodoController {
-  /**
-   * コンストラクタで TodoUsecase を DI で受け取る
-   *
-   * NestJS の DI コンテナが自動的に TodoUsecase のインスタンスを注入してくれる。
-   * private をつけることで、this.usecase としてアクセスできる（TypeScript の糖衣構文）。
-   */
-  constructor(private usecase: TodoUsecase) {}
+  constructor(
+    private usecase: TodoUsecase,
+    private csvExport: TodoCsvExportService,
+  ) {}
 
   /**
    * GET /todos — 一覧取得（ページング + 検索・ソート対応）
@@ -311,5 +311,61 @@ export class TodoController {
   })
   async deleteTodo(@Param('id', ParseIntPipe) id: number): Promise<void> {
     await this.usecase.deleteTodo(id);
+  }
+
+  /**
+   * GET /todos/export/csv — CSV エクスポート
+   *
+   * 全 TODO をCSV形式でダウンロードできます。
+   *
+   * 【レスポンスヘッダ】
+   * - Content-Type: text/csv; charset=utf-8
+   * - Content-Disposition: attachment; filename="todos.csv"
+   *   → ブラウザに「ダウンロード」として認識させる
+   *
+   * 【CSV の特徴】
+   * - UTF-8 BOM 付き → Excel で日本語が正しく表示
+   * - ヘッダ行 + データ行
+   * - カンマや改行を含むフィールドは "..." でエスケープ
+   *
+   * 【使用例】
+   * GET /todos/export/csv
+   * → todos.csv がダウンロード完了
+   *
+   * 【出力例】
+   * ID,タイトル,完了,タグ,作成日時,更新日時
+   * 1,買物,false,"[{""id"":1,""name"":""緊急""}]",2026-04-10T04:51:03.452Z,2026-04-10T04:51:03.452Z
+   * 2,ミーティング,true,,2026-04-09T10:00:00.000Z,2026-04-09T12:00:00.000Z
+   */
+  @Get('export/csv')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="todos.csv"')
+  @ApiOperation({
+    summary: 'TODO を CSV でエクスポート',
+    description:
+      '全 TODO を CSV 形式でダウンロードします。ファイル名は todos.csv です。',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'CSV ファイルを返す',
+    content: {
+      'text/csv': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  async exportToCsv(): Promise<StreamableFile> {
+    // ① 全 TODO を取得
+    const todos = await this.usecase.getAll();
+
+    // ② CSV に変換
+    const buffer = this.csvExport.exportToCsv(todos);
+
+    // ③ StreamableFile でラップして返す
+    // ヘッダは @Header() デコレータで自動設定される
+    return new StreamableFile(buffer);
   }
 }

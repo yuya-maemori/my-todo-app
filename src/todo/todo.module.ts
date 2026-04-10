@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
 import { TagModule } from '../tag/tag.module';
+import { CsvExportService } from '../common/services/csv-export.service';
 import { TodoController } from './todo.controller';
 import { TodoUsecase } from './todo.usecase';
 import { TodoRepository } from './todo.repository';
 import { TodoValidator } from './todo.validator';
+import { TodoCsvExportService } from './external/todo-csv-export.service';
 
 /**
  * Todo Module
@@ -33,6 +35,12 @@ import { TodoValidator } from './todo.validator';
 @Module({
   imports: [PrismaModule, TagModule],
   controllers: [TodoController],
-  providers: [TodoUsecase, TodoRepository, TodoValidator],
+  providers: [
+    TodoUsecase,
+    TodoRepository,
+    TodoValidator,
+    CsvExportService,
+    TodoCsvExportService,
+  ],
 })
 export class TodoModule {}

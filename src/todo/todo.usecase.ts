@@ -201,4 +201,21 @@ export class TodoUsecase {
     await this.validator.validateTodoExists(id);
     await this.repository.delete(id);
   }
+
+  /**
+   * Todo 全件取得（CSV エクスポート用）
+   *
+   * タグ情報を含めて全 TODO を取得します。
+   * CSV エクスポートなど、全データが必要な場合に使用します。
+   *
+   * @returns 全 TodoModel 配列（タグ含む）
+   *
+   * 【ポイント】
+   * - ページング条件なし → 全件取得
+   * - Repository.findAll() にオプションを渡さない
+   * - tags はすでに include されているので、CSV 出力に使える
+   */
+  async getAll(): Promise<TodoModel[]> {
+    return this.repository.findAll();
+  }
 }
