@@ -1,9 +1,37 @@
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { ProblemDetailsFilter } from './common/filters/problem-details.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  /**
+   * 【グローバル Exception Filter を登録】
+   *
+   * 【なぜここで登録するのか】
+   * - アプリケーション全体のすべてのエンドポイントに適用したいから
+   * - app が完成した状態（全 Module・Controller が初期化完了）で登録する必要がある
+   * - main.ts の bootstrap 関数が「アプリの最終的な完成状態」を表すので、ここが適切
+   *
+   * 【どう機能するのか】
+   * アプリケーション内で例外が投げられる
+   *   ↓
+   *   Controller → Usecase → Validator から NotFoundException などが投げられる
+   *   ↓
+   *   NestJS フレームワークが例外をキャッチ
+   *   ↓
+   *   ProblemDetailsFilter.catch() が自動で呼ばれる
+   *   ↓
+   *   RFC 7807 形式に統一変換
+   *   ↓
+   *   HTTP レスポンス（400/404/500 など）
+   *
+   * 【登録順序】
+   * useGlobalFilters() は「複数登録できる」が、一般的には1つ。
+   * 複数必要な場合は useGlobalFilters(filterA, filterB, filterC) と並べる。
+   */
+  app.useGlobalFilters(new ProblemDetailsFilter());
 
   /**
    * Swagger / OpenAPI ドキュメント生成
