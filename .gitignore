@@ -137,3 +137,7 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Test files（curl テスト用 Cookie）
+cookies.txt
+cookies*.txt

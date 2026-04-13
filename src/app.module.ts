@@ -7,6 +7,7 @@ import { HelloModule } from './hello/hello.module';
 import { TodoModule } from './todo/todo.module';
 import { TagModule } from './tag/tag.module';
 import { HealthModule } from './health/health.module';
+import { AuthModule } from './auth/auth.module';
 import { ConfigSchema } from './config/config.schema';
 
 @Module({
@@ -27,6 +28,7 @@ import { ConfigSchema } from './config/config.schema';
     TodoModule,
     TagModule,
     HealthModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

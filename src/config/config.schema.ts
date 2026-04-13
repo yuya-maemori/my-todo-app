@@ -26,7 +26,10 @@ export const ConfigSchema = z.object({
 
   // JWT設定
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
-  JWT_EXPIRATION: z.coerce.number().default(86400), // デフォルト: 24時間
+  JWT_ACCESS_TOKEN_EXPIRES_IN: z.coerce.number().default(900), // デフォルト: 15分
+
+  // bcrypt設定
+  BCRYPT_ROUNDS: z.coerce.number().default(10),
 
   // オプショナルな設定（デフォルト値あり）
   LOG_LEVEL: z
@@ -42,7 +45,8 @@ export const ConfigSchema = z.object({
  * - PORT: number
  * - DATABASE_URL: string
  * - JWT_SECRET: string
- * - JWT_EXPIRATION: number
+ * - JWT_ACCESS_TOKEN_EXPIRES_IN: number
+ * - BCRYPT_ROUNDS: number
  * - LOG_LEVEL: 'debug' | 'info' | 'warn' | 'error'
  */
 export type Config = z.infer<typeof ConfigSchema>;
