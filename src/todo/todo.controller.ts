@@ -11,6 +11,7 @@ import {
   ParseIntPipe,
   DefaultValuePipe,
   Header,
+  UseGuards,
 } from '@nestjs/common';
 import { StreamableFile } from '@nestjs/common';
 import {
@@ -40,6 +41,12 @@ import {
 import { listTodoSchema } from './schema/list-todo.schema';
 import { PaginatedResponseDto } from '../common/dto/paginated-response.dto';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
+import { UserAuthGuard } from '../auth/external/user-auth.guard';
+import { PoliciesGuard } from '../auth/external/policies.guard';
+import { CheckPolicy } from '../auth/decorators/check-policy.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CaslAbilityFactory } from '../auth/external/casl-ability.factory';
+import { UserJwtPayload } from '../auth/types';
 
 /**
  * Todo Controller
@@ -52,10 +59,12 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
  */
 @Controller('todos')
 @ApiTags('todos')
+@UseGuards(UserAuthGuard, PoliciesGuard)
 export class TodoController {
   constructor(
     private usecase: TodoUsecase,
     private csvExport: TodoCsvExportService,
+    private caslAbilityFactory: CaslAbilityFactory,
   ) {}
 
   /**
@@ -85,6 +94,7 @@ export class TodoController {
    * → デフォルト: 最新順、1ページ目、10 件
    */
   @Get()
+  @CheckPolicy((ability) => ability.can('read', 'Todo'))
   @ApiOperation({
     summary: 'TODO 一覧を取得（ページング + ソート・検索対応）',
     description:
@@ -134,16 +144,13 @@ export class TodoController {
     description: 'バリデーションエラー（パラメータが不正）',
   })
   async getTodos(
+    @CurrentUser() currentUser: UserJwtPayload,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
     @Query('sortBy', new DefaultValuePipe('createdAt')) sortBy: string,
     @Query('sortOrder', new DefaultValuePipe('desc')) sortOrder: string,
     @Query('keyword') keyword?: string,
   ): Promise<PaginatedResponseDto<TodoResponseDto>> {
-    // 【Step 1】Zod バリデーション + デフォルト値適用
-    // - page/limit/sortBy/sortOrder/keyword をバリデーション
-    // - invalid 値は拒否（enum チェックなど）
-    // - デフォルト値を自動適用
     const query = listTodoSchema.parse({
       page,
       limit,
@@ -152,10 +159,10 @@ export class TodoController {
       keyword,
     });
 
-    // 【Step 2】Usecase に検索条件を渡す
-    // - where / orderBy は Usecase が組み立てる
-    // - Repository が条件を Prisma に渡す
+    const ability = this.caslAbilityFactory.createForUser(currentUser);
+
     const { todos, totalItems } = await this.usecase.getTodosWithSearch({
+      ability,
       page: query.page,
       limit: query.limit,
       sortBy: query.sortBy as 'createdAt' | 'title',
@@ -192,6 +199,7 @@ export class TodoController {
    * 4. NestJS が自動的に JSON にシリアライズして返す
    */
   @Get(':id')
+  @CheckPolicy((ability) => ability.can('read', 'Todo'))
   @ApiOperation({
     summary: 'TODO 詳細を取得',
     description: '指定された ID の TODO データを返します。',
@@ -231,6 +239,7 @@ export class TodoController {
    * 5. toTodoResponseDto(model): Model → DTO に変換して返却
    */
   @Post()
+  @CheckPolicy((ability) => ability.can('create', 'Todo'))
   @ApiOperation({
     summary: '新しい TODO を作成',
     description: 'リクエストボディに title を指定して新規 TODO を作成します',
@@ -244,9 +253,10 @@ export class TodoController {
     description: 'バリデーションエラー（title が空、型不正など）',
   })
   async createTodo(
+    @CurrentUser() currentUser: UserJwtPayload,
     @Body(new ZodValidationPipe(createTodoSchema)) dto: CreateTodoDto,
   ): Promise<TodoResponseDto> {
-    const model = await this.usecase.createTodo(dto);
+    const model = await this.usecase.createTodo(dto, currentUser.sub);
     return toTodoResponseDto(model);
   }
 
@@ -257,6 +267,7 @@ export class TodoController {
    * バリデーションは ZodValidationPipe で先に行い、Usecase には安全な DTO だけを渡す。
    */
   @Patch(':id')
+  @CheckPolicy((ability) => ability.can('update', 'Todo'))
   @ApiOperation({
     summary: 'TODO を部分更新',
     description:
@@ -293,6 +304,7 @@ export class TodoController {
    */
   @Delete(':id')
   @HttpCode(204)
+  @CheckPolicy((ability) => ability.can('delete', 'Todo'))
   @ApiOperation({
     summary: 'TODO を削除',
     description: '指定された ID の TODO を削除します。削除成功時は No Content (204) を返します。',
@@ -338,6 +350,7 @@ export class TodoController {
    * 2,ミーティング,true,,2026-04-09T10:00:00.000Z,2026-04-09T12:00:00.000Z
    */
   @Get('export/csv')
+  @CheckPolicy((ability) => ability.can('read', 'Todo'))
   @Header('Content-Type', 'text/csv; charset=utf-8')
   @Header('Content-Disposition', 'attachment; filename="todos.csv"')
   @ApiOperation({

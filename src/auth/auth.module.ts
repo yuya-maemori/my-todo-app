@@ -7,6 +7,8 @@ import { UserAuthUsecase } from './user/user-auth.usecase';
 import { UserAuthValidator } from './user/user-auth.validator';
 import { UserAuthRepository } from './user/user-auth.repository';
 import { UserAuthGuard } from './external/user-auth.guard';
+import { CaslAbilityFactory } from './external/casl-ability.factory';
+import { PoliciesGuard } from './external/policies.guard';
 
 @Module({
   imports: [
@@ -28,7 +30,9 @@ import { UserAuthGuard } from './external/user-auth.guard';
     UserAuthValidator,
     UserAuthRepository,
     UserAuthGuard,
+    CaslAbilityFactory,
+    PoliciesGuard,
   ],
-  exports: [UserAuthGuard],
+  exports: [UserAuthGuard, CaslAbilityFactory, PoliciesGuard, JwtModule],
 })
 export class AuthModule {}

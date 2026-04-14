@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { accessibleBy } from '@casl/prisma';
 import { PrismaService } from '../prisma/prisma.service';
+import { AppAbility } from '../auth/external/casl-ability.factory';
 import { TodoModel } from './todo.model';
 import { toPrismaToModel, toPrismaToModels } from './todo.entity';
 
@@ -20,6 +22,7 @@ import { toPrismaToModel, toPrismaToModels } from './todo.entity';
  * → 複雑な条件組み立ては Controller/Usecase がやる（責務分離）
  */
 export interface FindAllOptions {
+  ability?: AppAbility;
   skip?: number;
   take?: number;
   where?: Prisma.TodoWhereInput;
@@ -66,10 +69,14 @@ export class TodoRepository {
    * → 「買い物」を含む未完了 TODO を、新しい順に、最初の 10 件取得
    */
   async findAll(options?: FindAllOptions): Promise<TodoModel[]> {
+    const accessibleWhere = options?.ability
+      ? accessibleBy(options.ability).Todo
+      : {};
+
     const records = await this.prisma.todo.findMany({
       skip: options?.skip,
       take: options?.take,
-      where: options?.where,
+      where: { ...accessibleWhere, ...options?.where },
       orderBy: options?.orderBy,
       include: { tags: { include: { tag: true } } },
     });
@@ -90,8 +97,9 @@ export class TodoRepository {
    * - count() → 全 TODO 件数（例：100 件）
    * - count({ where: { title: { contains: "買い物" } } }) → 検索結果の件数（例：15 件）
    */
-  async count(where?: Prisma.TodoWhereInput): Promise<number> {
-    return this.prisma.todo.count({ where });
+  async count(where?: Prisma.TodoWhereInput, ability?: AppAbility): Promise<number> {
+    const accessibleWhere = ability ? accessibleBy(ability).Todo : {};
+    return this.prisma.todo.count({ where: { ...accessibleWhere, ...where } });
   }
 
   /**
@@ -130,12 +138,14 @@ export class TodoRepository {
   async create(data: {
     title: string;
     completed: boolean;
+    userId?: number;
     tagIds?: number[];
   }): Promise<TodoModel> {
     const record = await this.prisma.todo.create({
       data: {
         title: data.title,
         completed: data.completed,
+        ...(data.userId !== undefined && { userId: data.userId }),
         ...(data.tagIds && data.tagIds.length > 0 && {
           tags: {
             createMany: {

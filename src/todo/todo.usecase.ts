@@ -6,6 +6,7 @@ import { CreateTodoDto } from './schema/create-todo.schema';
 import { UpdateTodoDto } from './schema/update-todo.schema';
 import { TodoValidator } from './todo.validator';
 import { TagService } from '../tag/external/tag.service';
+import { AppAbility } from '../auth/external/casl-ability.factory';
 
 /**
  * Todo Usecase
@@ -50,13 +51,14 @@ export class TodoUsecase {
    * 4. Repository に条件を渡す（findAll + count を並列実行）
    */
   async getTodosWithSearch(params: {
+    ability: AppAbility;
     page: number;
     limit: number;
     sortBy: 'createdAt' | 'title';
     sortOrder: 'asc' | 'desc';
     keyword?: string;
   }): Promise<{ todos: TodoModel[]; totalItems: number }> {
-    const { page, limit, sortBy, sortOrder, keyword } = params;
+    const { ability, page, limit, sortBy, sortOrder, keyword } = params;
     const skip = (page - 1) * limit;
 
     // 【Step 1】where 条件を組み立てる
@@ -81,12 +83,13 @@ export class TodoUsecase {
     // 【Step 3】Repository に条件を渡す（並列実行）
     const [todos, totalItems] = await Promise.all([
       this.repository.findAll({
+        ability,
         skip,
         take: limit,
         where,
         orderBy,
       }),
-      this.repository.count(where),  // where 条件を渡して、検索結果の総件数を取得
+      this.repository.count(where, ability),
     ]);
 
     return { todos, totalItems };
@@ -159,7 +162,7 @@ export class TodoUsecase {
    * - Controller の ZodValidationPipe で検証済み
    * - Usecase は「既に安全なデータ」を前提にできる
    */
-  async createTodo(data: CreateTodoDto): Promise<TodoModel> {
+  async createTodo(data: CreateTodoDto, userId: number): Promise<TodoModel> {
     // タグ名の配列が渡された場合、各タグを findOrCreate して ID を集める
     const tagIds: number[] = [];
     if (data.tagNames && data.tagNames.length > 0) {
@@ -172,6 +175,7 @@ export class TodoUsecase {
     return this.repository.create({
       title: data.title,
       completed: data.completed,
+      userId,
       tagIds,
     });
   }
