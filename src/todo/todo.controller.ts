@@ -290,10 +290,11 @@ export class TodoController {
     description: '指定された ID の TODO が見つかりません',
   })
   async updateTodo(
+    @CurrentUser() currentUser: UserJwtPayload,
     @Param('id', ParseIntPipe) id: number,
     @Body(new ZodValidationPipe(updateTodoSchema)) dto: UpdateTodoDto,
   ): Promise<TodoResponseDto> {
-    const model = await this.usecase.updateTodo(id, dto);
+    const model = await this.usecase.updateTodo(id, dto, currentUser.sub);
     return toTodoResponseDto(model);
   }
 
@@ -321,8 +322,11 @@ export class TodoController {
   @ApiNotFoundResponse({
     description: '指定された ID の TODO が見つかりません',
   })
-  async deleteTodo(@Param('id', ParseIntPipe) id: number): Promise<void> {
-    await this.usecase.deleteTodo(id);
+  async deleteTodo(
+    @CurrentUser() currentUser: UserJwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<void> {
+    await this.usecase.deleteTodo(id, currentUser.sub);
   }
 
   /**

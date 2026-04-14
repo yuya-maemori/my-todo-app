@@ -22,9 +22,25 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  todos Todo[]
+  todos     Todo[]
+  auditLogs AuditLog[]
 
   @@map("users")
+}
+
+model AuditLog {
+  id           Int      @id @default(autoincrement())
+  userId       Int?     @map("user_id")
+  action       String   // 'create' | 'update' | 'delete'
+  resourceType String   @map("resource_type") // 'Todo' など
+  resourceId   Int      @map("resource_id")
+  before       Json?    // 変更前スナップショット（create 時は null）
+  after        Json?    // 変更後スナップショット（delete 時は null）
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
 }
 
 model Todo {

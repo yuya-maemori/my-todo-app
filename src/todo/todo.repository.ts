@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { accessibleBy } from '@casl/prisma';
 import { PrismaService } from '../prisma/prisma.service';
+import { TransactionClient } from '../prisma/transaction.service';
 import { AppAbility } from '../auth/external/casl-ability.factory';
 import { TodoModel } from './todo.model';
 import { toPrismaToModel, toPrismaToModels } from './todo.entity';
@@ -135,13 +136,17 @@ export class TodoRepository {
    *
    * 戻り値：作成された TodoModel
    */
-  async create(data: {
-    title: string;
-    completed: boolean;
-    userId?: number;
-    tagIds?: number[];
-  }): Promise<TodoModel> {
-    const record = await this.prisma.todo.create({
+  async create(
+    data: {
+      title: string;
+      completed: boolean;
+      userId?: number;
+      tagIds?: number[];
+    },
+    tx?: TransactionClient,
+  ): Promise<TodoModel> {
+    const client = tx ?? this.prisma;
+    const record = await client.todo.create({
       data: {
         title: data.title,
         completed: data.completed,
@@ -179,8 +184,10 @@ export class TodoRepository {
       title: string;
       completed: boolean;
     }>,
+    tx?: TransactionClient,
   ): Promise<TodoModel> {
-    const record = await this.prisma.todo.update({
+    const client = tx ?? this.prisma;
+    const record = await client.todo.update({
       where: { id },
       data: {
         ...(data.title !== undefined && { title: data.title }),
@@ -201,8 +208,9 @@ export class TodoRepository {
    *
    * 戻り値：削除された TodoModel
    */
-  async delete(id: number): Promise<TodoModel> {
-    const record = await this.prisma.todo.delete({
+  async delete(id: number, tx?: TransactionClient): Promise<TodoModel> {
+    const client = tx ?? this.prisma;
+    const record = await client.todo.delete({
       where: { id },
       include: { tags: { include: { tag: true } } },
     });

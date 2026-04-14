@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
 import { TagModule } from '../tag/tag.module';
 import { AuthModule } from '../auth/auth.module';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 import { CsvExportService } from '../common/services/csv-export.service';
 import { TodoController } from './todo.controller';
 import { TodoUsecase } from './todo.usecase';
@@ -34,7 +35,7 @@ import { TodoCsvExportService } from './external/todo-csv-export.service';
  * 6. NestJS が PrismaModule の exports から PrismaService を見つけて注入
  */
 @Module({
-  imports: [PrismaModule, TagModule, AuthModule],
+  imports: [PrismaModule, TagModule, AuthModule, AuditLogModule],
   controllers: [TodoController],
   providers: [
     TodoUsecase,

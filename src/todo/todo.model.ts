@@ -28,4 +28,23 @@ export class TodoModel {
     this.updatedAt = data.updatedAt;
     this.tags = data.tags ?? [];
   }
+
+  /**
+   * 監査ログ用スナップショットを返す
+   *
+   * 「このとき Todo はどういう状態だったか」を記録するためのメソッド。
+   * 追跡対象のフィールドのみ返す（DB固有のカラムや大きなデータは含めない）。
+   *
+   * 【使われる場所（Usecase）】
+   * - create: after = todo.toAuditSnapshot()
+   * - update: before = original.toAuditSnapshot(), after = updated.toAuditSnapshot()
+   * - delete: before = todo.toAuditSnapshot()
+   */
+  toAuditSnapshot(): Record<string, unknown> {
+    return {
+      id: this.id,
+      title: this.title,
+      completed: this.completed,
+    };
+  }
 }

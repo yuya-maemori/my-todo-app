@@ -7,6 +7,8 @@ import { UpdateTodoDto } from './schema/update-todo.schema';
 import { TodoValidator } from './todo.validator';
 import { TagService } from '../tag/external/tag.service';
 import { AppAbility } from '../auth/external/casl-ability.factory';
+import { TransactionService } from '../prisma/transaction.service';
+import { AuditLogRepository } from '../audit-log/audit-log.repository';
 
 /**
  * Todo Usecase
@@ -24,6 +26,8 @@ export class TodoUsecase {
     private repository: TodoRepository,
     private validator: TodoValidator,
     private tagService: TagService,
+    private transaction: TransactionService,
+    private auditLogRepository: AuditLogRepository,
   ) {}
 
   /**
@@ -164,6 +168,7 @@ export class TodoUsecase {
    */
   async createTodo(data: CreateTodoDto, userId: number): Promise<TodoModel> {
     // タグ名の配列が渡された場合、各タグを findOrCreate して ID を集める
+    // ★ タグ解決はトランザクション外で行う（外部サービスとの通信を tx に含めない）
     const tagIds: number[] = [];
     if (data.tagNames && data.tagNames.length > 0) {
       for (const tagName of data.tagNames) {
@@ -172,11 +177,28 @@ export class TodoUsecase {
       }
     }
 
-    return this.repository.create({
-      title: data.title,
-      completed: data.completed,
-      userId,
-      tagIds,
+    // ★ transaction.run() でトランザクションを開始
+    // Todo の作成と監査ログの記録を同一トランザクションで行うことで、
+    // どちらかが失敗しても両方ロールバックされる
+    return this.transaction.run(async (tx) => {
+      const todo = await this.repository.create(
+        { title: data.title, completed: data.completed, userId, tagIds },
+        tx,
+      );
+
+      await this.auditLogRepository.create(
+        {
+          userId,
+          action: 'create',
+          resourceType: 'Todo',
+          resourceId: todo.id,
+          before: null,              // create なので変更前は null
+          after: todo.toAuditSnapshot(), // 作成後のスナップショット
+        },
+        tx,
+      );
+
+      return todo;
     });
   }
 
@@ -186,12 +208,32 @@ export class TodoUsecase {
    * 先に存在確認を行うことで、「存在しない ID を更新した」というケースを
    * 明確に 404 として扱える。
    */
-  async updateTodo(id: number, data: UpdateTodoDto): Promise<TodoModel> {
-    await this.validator.validateTodoExists(id);
+  async updateTodo(id: number, data: UpdateTodoDto, userId: number): Promise<TodoModel> {
+    const original = await this.validator.validateTodoExists(id);
 
-    return this.repository.update(id, {
-      ...(data.title !== undefined && { title: data.title }),
-      ...(data.completed !== undefined && { completed: data.completed }),
+    return this.transaction.run(async (tx) => {
+      const updated = await this.repository.update(
+        id,
+        {
+          ...(data.title !== undefined && { title: data.title }),
+          ...(data.completed !== undefined && { completed: data.completed }),
+        },
+        tx,
+      );
+
+      await this.auditLogRepository.create(
+        {
+          userId,
+          action: 'update',
+          resourceType: 'Todo',
+          resourceId: id,
+          before: original.toAuditSnapshot(), // 変更前スナップショット
+          after: updated.toAuditSnapshot(),   // 変更後スナップショット
+        },
+        tx,
+      );
+
+      return updated;
     });
   }
 
@@ -201,9 +243,24 @@ export class TodoUsecase {
    * 削除前に存在確認を行い、存在しない場合は 404 を返す。
    * 正常系は Controller 側で 204 No Content を返す。
    */
-  async deleteTodo(id: number): Promise<void> {
-    await this.validator.validateTodoExists(id);
-    await this.repository.delete(id);
+  async deleteTodo(id: number, userId: number): Promise<void> {
+    const todo = await this.validator.validateTodoExists(id);
+
+    await this.transaction.run(async (tx) => {
+      await this.repository.delete(id, tx);
+
+      await this.auditLogRepository.create(
+        {
+          userId,
+          action: 'delete',
+          resourceType: 'Todo',
+          resourceId: id,
+          before: todo.toAuditSnapshot(), // 削除前スナップショット
+          after: null,                    // delete なので変更後は null
+        },
+        tx,
+      );
+    });
   }
 
   /**
